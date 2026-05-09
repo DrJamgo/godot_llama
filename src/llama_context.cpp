@@ -355,7 +355,7 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 
 		const char* grammar = static_cast<String>(p_params["grammar"]).utf8().get_data();
 
-		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, p_params["grammar"], grammar_root);
+		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, grammar, grammar_root);
 		if (grammar_sampler)
 			llama_sampler_chain_add(native_sampler, grammar_sampler);
 		else
