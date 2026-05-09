@@ -11,6 +11,7 @@
 #include <llama.h>
 #include <algorithm>
 #include <vector>
+#include <string>
 
 using namespace godot;
 
@@ -351,7 +352,7 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 	if (p_params.has("grammar")){
 		const char* grammar_root = "root";
 
-		std::string grammar_std =  p_params["grammar"].utf8().get_data();
+		std::string grammar_std =   static_cast<String>(p_params["grammar"]).utf8().get_data();
 
 		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, grammar_std.c_str(), grammar_root);
 		if (grammar_sampler)
