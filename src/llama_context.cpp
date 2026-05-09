@@ -349,8 +349,11 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 	const llama_vocab *vocab = model->get_vocab();
 
 	if (p_params.has("grammar")){
-		const char* grammar_root = p_params.has("grammar_root") ? p_params["grammar_root"] : "root"
-		auto grammar_sampler = llama_sampler_init_grammar(vocab, p_params["grammar"], grammar_root);
+		const char* grammar_root = "root";
+		if p_params.has("grammar_root")
+			grammar_root = p_params["grammar_root"]
+
+		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, p_params["grammar"], grammar_root);
 		if (!grammar_sampler)
 			llama_sampler_chain_add(native_sampler, grammar_sampler);
 		else
