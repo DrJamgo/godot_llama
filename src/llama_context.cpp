@@ -351,7 +351,7 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 	if (p_params.has("grammar")){
 		const char* grammar_root = "root";
 		if (p_params.has("grammar_root"))
-			grammar_root = p_params["grammar_root"]
+			grammar_root = p_params["grammar_root"];
 
 		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, p_params["grammar"], grammar_root);
 		if (grammar_sampler)
