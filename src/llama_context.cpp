@@ -350,12 +350,12 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 
 	if (p_params.has("grammar")){
 		const char* grammar_root = "root";
-		if (p_params.has("grammar_root"))
-			grammar_root = static_cast<String>(p_params["grammar_root"]).utf8().get_data();
 
-		const char* grammar = static_cast<String>(p_params["grammar"]).utf8().get_data();
+		String grammar_str = p_params["grammar"];
+		CharString grammar_utf8 = grammar_str.utf8();
+		const char * grammar_cstr = grammar_utf8.get_data();
 
-		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, grammar, grammar_root);
+		llama_sampler * grammar_sampler = llama_sampler_init_grammar(vocab, grammar_cstr, grammar_root);
 		if (grammar_sampler)
 			llama_sampler_chain_add(native_sampler, grammar_sampler);
 		else
