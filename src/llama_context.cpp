@@ -346,7 +346,7 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     llama_sampler_chain_params chain_params = llama_sampler_chain_default_params();
     native_sampler = llama_sampler_chain_init(chain_params);
 
-	const llama_vocab *vocab = llama_model_get_vocab(model);
+	const llama_vocab *vocab = model->get_vocab();
 
 	if (p_params.has("grammar")){
 		const char* grammar_root = "root";
