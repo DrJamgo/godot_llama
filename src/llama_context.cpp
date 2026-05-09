@@ -345,6 +345,18 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     }
     llama_sampler_chain_params chain_params = llama_sampler_chain_default_params();
     native_sampler = llama_sampler_chain_init(chain_params);
+
+	const llama_vocab *vocab = model->get_vocab();
+
+	if (p_params.has("grammar")){
+		const char* grammar_root = p_params.has("grammar_root") ? p_params["grammar_root"] : "root"
+		auto grammar_sampler = llama_sampler_init_grammar(vocab, p_params["grammar"], grammar_root);
+		if (!grammar_sampler)
+			llama_sampler_chain_add(native_sampler, grammar_sampler);
+		else
+			ERR_PRINT("Invalid GBNF grammar");
+	}
+
     llama_sampler_chain_add(native_sampler, llama_sampler_init_top_k(top_k));
     llama_sampler_chain_add(native_sampler, llama_sampler_init_top_p(top_p, 1));
     if (min_p > 0.0f) {
@@ -355,6 +367,7 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     }
     llama_sampler_chain_add(native_sampler, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(native_sampler, llama_sampler_init_dist(seed));
+	
 
     cancel_requested = false;
 
@@ -397,7 +410,6 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     }
 
     String full_text;
-    const llama_vocab *vocab = model->get_vocab();
     for (int i = 0; i < max_tokens; i++) {
         if (cancel_requested) {
             break;
