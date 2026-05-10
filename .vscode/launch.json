@@ -5,13 +5,17 @@
             "name": "Debug test_grammar",
             "type": "cppdbg",
             "request": "launch",
-
             "program": "${workspaceFolder}/addons/godot_llama/bin/test_grammar.linux.template_debug.x86_64",
-            "args": [],
             "cwd": "${workspaceFolder}",
-
             "stopAtEntry": false,
 
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+
+            "externalConsole": false,
+            "sourceFileMap": {
+                "${workspaceFolder}": "${workspaceFolder}"
+            },
             "environment": [
                 {
                     "name": "LD_LIBRARY_PATH",
@@ -19,17 +23,9 @@
                 }
             ],
 
-            "externalConsole": false,
-
-            "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb",
-
             "setupCommands": [
-                {
-                    "description": "Enable pretty printing",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
+                { "text": "-enable-pretty-printing" },
+                { "text": "set pagination off" }
             ],
 
             "preLaunchTask": "Build Debug Template"

@@ -434,7 +434,6 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
         return "";
     }
 
-    WARN_PRINT("Prompt tokens decoded");
     String full_text;
     const llama_vocab * vocab = model->get_vocab();
 
@@ -501,23 +500,9 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
 
         llama_token token = cur_p.data[cur_p.selected].id;
 
-        _emit_error(vformat(
-            "Sampled token: %d",
-            static_cast<int32_t>(token)
-        ));
-
         if (llama_vocab_is_eog(vocab, token)) {
-            _emit_error(vformat(
-                "Token %d is EOG",
-                static_cast<int32_t>(token)
-            ));
             break;
         }
-
-        _emit_error(vformat(
-            "Token %d is not EOG",
-            static_cast<int32_t>(token)
-        ));
 
         const String token_text = _token_to_piece(token);
 

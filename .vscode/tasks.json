@@ -7,7 +7,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "source venv/bin/activate && LLAMA_CPP_BUILD_DIR=\"third_party/llama.cpp/build_shared\" scons target=template_debug use_static_cpp=no -j8"
+                "source venv/bin/activate && LLAMA_CPP_BUILD_DIR=\"third_party/llama.cpp/build_shared\" scons target=template_debug use_static_cpp=no verbose=yes -j8"
             ],
             "group": {
                 "kind": "build",

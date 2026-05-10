@@ -7,6 +7,10 @@ import sys
 sys.path.append(Dir("godot-cpp").srcnode().abspath)
 
 env = SConscript("godot-cpp/SConstruct")
+env.Append(
+    CCFLAGS=["-g"],
+    CXXFLAGS=["-g"],
+)
 llama_build_dir = os.environ.get("LLAMA_CPP_BUILD_DIR", "third_party/llama.cpp/build")
 
 def _env_flag(name):
@@ -118,10 +122,27 @@ else:
         "addons/godot_llama/bin/libgodot_llama{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
         source=sources,
     )
-    executable = env.Program(
-        "addons/godot_llama/bin/test_grammar{}{}".format(env["suffix"], env["PROGSUFFIX"]),
-        source="test_grammar.cpp",
+
+    executable_env = env.Clone()
+
+    executable_env.Append(
+        LIBS=[library],
     )
+    executable_env.Append(
+        LIBPATH=["addons/godot_llama/bin"],
+    )
+
+    executable_env["LINKFLAGS"] = [
+        f for f in executable_env.get("LINKFLAGS", [])
+        if f not in ("-s", "-Wl,-s", "-DNDEBUG")
+    ]
+
+    executable = executable_env.Program(
+        "addons/godot_llama/bin/test_grammar{}{}".format(env["suffix"], env["PROGSUFFIX"]),
+        source=["test_grammar.cpp"] + sources,
+    )
+
+    env.Depends(executable, library)
     env.NoCache(executable)
     
 
