@@ -9,6 +9,7 @@
 #include <llama.h>
 #include <climits>
 #include <vector>
+#include <filesystem>
 
 using namespace godot;
 
@@ -70,7 +71,13 @@ Error LlamaModel::load(const String &p_model_path, const Dictionary &p_params) {
     unload();
 
     const String global_path = _globalize_path(p_model_path);
-    if (!FileAccess::file_exists(global_path)) {
+    bool file_exists = false;
+    if (global_path.begins_with("res://") || global_path.begins_with("user://")) {
+        file_exists = FileAccess::file_exists(global_path);
+    } else {
+        file_exists = std::filesystem::exists(global_path.utf8().get_data());
+    }
+    if (!file_exists) {
         return ERR_FILE_NOT_FOUND;
     }
 

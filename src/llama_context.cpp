@@ -7,6 +7,7 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <ctime>
 
 #include <llama.h>
 #include <algorithm>
@@ -44,6 +45,10 @@ void LlamaContext::_bind_methods() {
 }
 
 LlamaContext::~LlamaContext() {
+    if (native_grammar_sampler != nullptr) {
+        llama_sampler_free(native_grammar_sampler);
+        native_grammar_sampler = nullptr;
+    }
     if (native_sampler != nullptr) {
         llama_sampler_free(native_sampler);
         native_sampler = nullptr;
@@ -141,6 +146,10 @@ String LlamaContext::_token_to_piece(int32_t p_token) const {
 }
 
 Error LlamaContext::create(const Ref<LlamaModel> &p_model, const Dictionary &p_params) {
+    if (native_grammar_sampler != nullptr) {
+        llama_sampler_free(native_grammar_sampler);
+        native_grammar_sampler = nullptr;
+    }
     if (native_sampler != nullptr) {
         llama_sampler_free(native_sampler);
         native_sampler = nullptr;
@@ -187,7 +196,7 @@ Error LlamaContext::create(const Ref<LlamaModel> &p_model, const Dictionary &p_p
     llama_sampler_chain_add(native_sampler, llama_sampler_init_top_k(40));
     llama_sampler_chain_add(native_sampler, llama_sampler_init_top_p(0.9f, 1));
     llama_sampler_chain_add(native_sampler, llama_sampler_init_temp(0.7f));
-    llama_sampler_chain_add(native_sampler, llama_sampler_init_dist(static_cast<uint32_t>(Time::get_singleton()->get_unix_time_from_system())));
+    llama_sampler_chain_add(native_sampler, llama_sampler_init_dist(static_cast<uint32_t>(std::time(nullptr))));
 
     return OK;
 }
@@ -268,7 +277,12 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     float frequency_penalty = 0.0f;
     float presence_penalty = 0.0f;
     int32_t penalty_last_n = 64;
-    uint32_t seed = static_cast<uint32_t>(Time::get_singleton()->get_unix_time_from_system());
+	CharString grammar_cstr;
+	const char* grammar = nullptr;
+	CharString grammar_root_cstr;
+	const char* grammar_root = nullptr;
+
+    uint32_t seed = static_cast<uint32_t>(std::time(nullptr));
     if (p_params.has("temperature")) {
         temperature = static_cast<float>(double(p_params["temperature"]));
     }
@@ -296,6 +310,16 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     if (p_params.has("seed")) {
         seed = static_cast<uint32_t>(int64_t(p_params["seed"]));
     }
+
+	if (p_params.has("grammar")){
+		grammar_cstr = String(p_params["grammar"]).utf8();
+		grammar = grammar_cstr.get_data();
+
+		if (p_params.has("grammar_root")){
+			grammar_root_cstr = String(p_params["grammar_root"]).utf8();
+			grammar_root = grammar_root_cstr.get_data();
+		}
+	}
 
     temperature = std::max(0.0f, temperature);
     top_p = std::clamp(top_p, 0.0f, 1.0f);
@@ -343,6 +367,20 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
     if (native_sampler != nullptr) {
         llama_sampler_free(native_sampler);
     }
+    if (native_grammar_sampler != nullptr) {
+        llama_sampler_free(native_grammar_sampler);
+        native_grammar_sampler = nullptr;
+    }
+    
+    // Initialize grammar sampler if grammar is provided
+    if (grammar != nullptr && model != nullptr) {
+        native_grammar_sampler = llama_sampler_init_grammar(
+            model->get_vocab(),
+            grammar,
+            grammar_root != nullptr ? grammar_root : "root"
+        );
+    }
+    
     llama_sampler_chain_params chain_params = llama_sampler_chain_default_params();
     native_sampler = llama_sampler_chain_init(chain_params);
     llama_sampler_chain_add(native_sampler, llama_sampler_init_top_k(top_k));
@@ -396,31 +434,110 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
         return "";
     }
 
+    WARN_PRINT("Prompt tokens decoded");
     String full_text;
-    const llama_vocab *vocab = model->get_vocab();
+    const llama_vocab * vocab = model->get_vocab();
+
     for (int i = 0; i < max_tokens; i++) {
         if (cancel_requested) {
             break;
         }
 
-        llama_token token = llama_sampler_sample(native_sampler, native_context, -1);
-        if (llama_vocab_is_eog(vocab, token)) {
+        const float * logits = llama_get_logits(native_context);
+
+        if (logits == nullptr) {
+            _emit_error("Failed to get logits");
             break;
         }
 
+        const int32_t n_vocab = llama_vocab_n_tokens(vocab);
+
+        std::vector<llama_token_data> candidates;
+        candidates.reserve(n_vocab);
+
+        for (llama_token token_id = 0; token_id < n_vocab; token_id++) {
+            candidates.push_back({
+                token_id,
+                logits[token_id],
+                0.0f
+            });
+        }
+
+        llama_token_data_array cur_p = {
+            candidates.data(),
+            candidates.size(),
+            -1,
+            false
+        };
+
+        // Apply grammar FIRST
+        if (native_grammar_sampler != nullptr) {
+            llama_sampler_apply(native_grammar_sampler, &cur_p);
+
+            bool has_valid_candidate = false;
+
+            for (size_t k = 0; k < cur_p.size; k++) {
+                if (cur_p.data[k].logit != -INFINITY) {
+                    has_valid_candidate = true;
+                    break;
+                }
+            }
+
+            if (!has_valid_candidate) {
+                _emit_error("Grammar rejected all candidates");
+                break;
+            }
+        }
+
+        // Apply normal sampler chain
+        llama_sampler_apply(native_sampler, &cur_p);
+
+        // Extract selected token
+        if (cur_p.selected < 0 ||
+            cur_p.selected >= static_cast<int32_t>(cur_p.size)) {
+            _emit_error("Sampler produced invalid selected index");
+            break;
+        }
+
+        llama_token token = cur_p.data[cur_p.selected].id;
+
+        _emit_error(vformat(
+            "Sampled token: %d",
+            static_cast<int32_t>(token)
+        ));
+
+        if (llama_vocab_is_eog(vocab, token)) {
+            _emit_error(vformat(
+                "Token %d is EOG",
+                static_cast<int32_t>(token)
+            ));
+            break;
+        }
+
+        _emit_error(vformat(
+            "Token %d is not EOG",
+            static_cast<int32_t>(token)
+        ));
+
         const String token_text = _token_to_piece(token);
+
         full_text += token_text;
 
         bool reached_stop_sequence = false;
+
         if (!stop_sequences.is_empty()) {
             int first_stop_pos = -1;
-            for (int i = 0; i < stop_sequences.size(); i++) {
-                const String stop_sequence = stop_sequences[i];
+
+            for (int j = 0; j < stop_sequences.size(); j++) {
+                const String stop_sequence = stop_sequences[j];
                 const int stop_pos = full_text.find(stop_sequence);
-                if (stop_pos >= 0 && (first_stop_pos < 0 || stop_pos < first_stop_pos)) {
+
+                if (stop_pos >= 0 &&
+                    (first_stop_pos < 0 || stop_pos < first_stop_pos)) {
                     first_stop_pos = stop_pos;
                 }
             }
+
             if (first_stop_pos >= 0) {
                 full_text = full_text.substr(0, first_stop_pos);
                 reached_stop_sequence = true;
@@ -428,22 +545,41 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
         }
 
         if (p_streaming && !reached_stop_sequence) {
-            emit_signal("token_generated", token_text, static_cast<int64_t>(token));
+            emit_signal(
+                "token_generated",
+                token_text,
+                static_cast<int64_t>(token)
+            );
         }
 
         if (reached_stop_sequence) {
             break;
         }
 
+        // Advance sampler states
         llama_sampler_accept(native_sampler, token);
-        std::vector<int32_t> next_token = { static_cast<int32_t>(token) };
+
+        if (native_grammar_sampler != nullptr) {
+            llama_sampler_accept(native_grammar_sampler, token);
+        }
+
+        // Decode token into model context
+        std::vector<int32_t> next_token = {
+            static_cast<int32_t>(token)
+        };
+
         if (!_decode_tokens(next_token)) {
-            _emit_error(vformat("llama_decode failed while generating tokens. detail=%s", last_decode_error));
+            _emit_error(vformat(
+                "llama_decode failed while generating tokens. detail=%s",
+                last_decode_error
+            ));
+
             return full_text;
         }
     }
 
     emit_signal("generation_finished", full_text);
+
     return full_text;
 }
 

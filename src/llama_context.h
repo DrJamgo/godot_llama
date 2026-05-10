@@ -20,6 +20,7 @@ class LlamaContext : public RefCounted {
 private:
     struct llama_context *native_context = nullptr;
     struct llama_sampler *native_sampler = nullptr;
+    struct llama_sampler *native_grammar_sampler = nullptr;
     int32_t decode_pos = 0;
     String last_decode_error;
 
