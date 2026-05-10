@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug test_grammar",
+            "type": "cppdbg",
+            "request": "launch",
+
+            "program": "${workspaceFolder}/addons/godot_llama/bin/test_grammar.linux.template_debug.x86_64",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+
+            "stopAtEntry": false,
+
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${workspaceFolder}/addons/godot_llama/bin:${workspaceFolder}/third_party/llama.cpp/build_shared/bin"
+                }
+            ],
+
+            "externalConsole": false,
+
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+
+            "preLaunchTask": "Build Debug Template"
+        }
+    ]
+}

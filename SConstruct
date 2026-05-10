@@ -118,6 +118,12 @@ else:
         "addons/godot_llama/bin/libgodot_llama{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
         source=sources,
     )
+    executable = env.Program(
+        "addons/godot_llama/bin/test_grammar{}{}".format(env["suffix"], env["PROGSUFFIX"]),
+        source="test_grammar.cpp",
+    )
+    env.NoCache(executable)
+    
 
 if env["platform"] == "windows" and not link_static_llama:
     def _sync_runtime_dlls(target, source, env):
@@ -148,5 +154,6 @@ if env["platform"] == "windows" and not link_static_llama:
     Default(runtime_sync)
 else:
     Default(library)
+    Default(executable)
 
 env.NoCache(library)
