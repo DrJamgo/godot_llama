@@ -379,6 +379,8 @@ String LlamaContext::_generate_internal(int p_max_tokens, const Dictionary &p_pa
             grammar,
             grammar_root != nullptr ? grammar_root : "root"
         );
+
+		if(!native_grammar_sampler) ERR_PRINT("Failed to initialize grammar sampler, wrong syntax");
     }
     
     llama_sampler_chain_params chain_params = llama_sampler_chain_default_params();

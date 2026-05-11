@@ -36,6 +36,7 @@ public:
     String detokenize(const PackedInt32Array &p_tokens) const;
     int get_vocab_size() const;
     Dictionary get_metadata() const;
+    Dictionary get_devices() const;
 
     const struct llama_model *get_native_model() const;
     const struct llama_vocab *get_vocab() const;

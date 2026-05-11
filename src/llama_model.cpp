@@ -7,6 +7,7 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include <llama.h>
+#include <ggml-backend.h>
 #include <climits>
 #include <vector>
 #include <filesystem>
@@ -61,6 +62,7 @@ void LlamaModel::_bind_methods() {
     ClassDB::bind_method(D_METHOD("detokenize", "tokens"), &LlamaModel::detokenize);
     ClassDB::bind_method(D_METHOD("get_vocab_size"), &LlamaModel::get_vocab_size);
     ClassDB::bind_method(D_METHOD("get_metadata"), &LlamaModel::get_metadata);
+	ClassDB::bind_method(D_METHOD("get_devices"), &LlamaModel::get_devices);
 }
 
 LlamaModel::~LlamaModel() {
@@ -198,4 +200,73 @@ const struct llama_model *LlamaModel::get_native_model() const {
 
 const struct llama_vocab *LlamaModel::get_vocab() const {
     return vocab;
+}
+
+Dictionary LlamaModel::get_devices() const {
+    Dictionary result;
+    
+    // Initialize backend to ensure devices are registered
+    llama_backend_init();
+    
+    // Get the number of available devices
+    size_t n_devices = ggml_backend_dev_count();
+    Array devices_array;
+    
+    for (size_t i = 0; i < n_devices; i++) {
+        ggml_backend_dev_t device = ggml_backend_dev_get(i);
+        if (device == nullptr) {
+            continue;
+        }
+        
+        Dictionary device_info;
+        
+        // Get device properties
+        struct ggml_backend_dev_props props;
+        ggml_backend_dev_get_props(device, &props);
+        
+        device_info["name"] = props.name ? String::utf8(props.name) : "Unknown";
+        device_info["description"] = props.description ? String::utf8(props.description) : "";
+        device_info["memory_free"] = static_cast<int64_t>(props.memory_free);
+        device_info["memory_total"] = static_cast<int64_t>(props.memory_total);
+        device_info["device_id"] = props.device_id ? String::utf8(props.device_id) : "";
+        
+        // Get device type
+        String type_str;
+        switch (props.type) {
+            case GGML_BACKEND_DEVICE_TYPE_CPU:
+                type_str = "CPU";
+                break;
+            case GGML_BACKEND_DEVICE_TYPE_GPU:
+                type_str = "GPU";
+                break;
+            case GGML_BACKEND_DEVICE_TYPE_IGPU:
+                type_str = "IGPU";
+                break;
+            case GGML_BACKEND_DEVICE_TYPE_ACCEL:
+                type_str = "ACCEL";
+                break;
+            case GGML_BACKEND_DEVICE_TYPE_META:
+                type_str = "META";
+                break;
+            default:
+                type_str = "UNKNOWN";
+                break;
+        }
+        device_info["type"] = type_str;
+        
+        // Add capabilities
+        Dictionary caps;
+        caps["async"] = static_cast<bool>(props.caps.async);
+        caps["host_buffer"] = static_cast<bool>(props.caps.host_buffer);
+        caps["buffer_from_host_ptr"] = static_cast<bool>(props.caps.buffer_from_host_ptr);
+        caps["events"] = static_cast<bool>(props.caps.events);
+        device_info["capabilities"] = caps;
+        
+        devices_array.append(device_info);
+    }
+    
+    result["devices"] = devices_array;
+    result["device_count"] = static_cast<int64_t>(n_devices);
+    
+    return result;
 }
